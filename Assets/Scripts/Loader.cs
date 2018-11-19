@@ -30,7 +30,7 @@ namespace PostSplitLoading
         public RawImage ImageDisplay;
         public Text DebugOutput;
 
-        private AssetBundle _bundle;
+        private static AssetBundle _bundle;
         
         public void ButtonLoadScene()
         {
