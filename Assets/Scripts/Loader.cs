@@ -17,6 +17,7 @@ using System.Collections;
 using System.IO;
 using System.Runtime.InteropServices;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -29,14 +30,16 @@ namespace PostSplitLoading
 
         public RawImage ImageDisplay;
         public Text DebugOutput;
+        public Text PathInput;
 
         private static AssetBundle _bundle;
-        
+        private string _bundlePath;
+
         public void ButtonLoadScene()
         {
             SceneManager.LoadScene(1);
         }
-        
+
         public void ButtonLoadNativeLib()
         {
             try
@@ -44,7 +47,7 @@ namespace PostSplitLoading
                 // Pass empty string to library function to load the library.
                 ReadLink("");
             }
-            catch(DllNotFoundException e)
+            catch (DllNotFoundException e)
             {
                 DisplayError(e.ToString());
                 return;
@@ -58,45 +61,69 @@ namespace PostSplitLoading
         {
             var image = Resources.Load<Texture2D>("ExampleImage");
             ImageDisplay.texture = image;
-            
+
             if (image == null)
             {
                 DisplayError("Failed to load image from resources");
             }
         }
 
-        public void LoadSceneFromStreamingAssets()
+        public void ButtonLoadSceneFromStreamingAssets()
         {
-            StartCoroutine(Co_LoadSceneFromStreamingAssets());
+            StartCoroutine(CoLoadAssetBundle());
         }
 
-        private IEnumerator Co_LoadSceneFromStreamingAssets()
+        private IEnumerator CoLoadAssetBundle()
         {
             if (_bundle != null)
             {
-                _bundle.Unload(true);
-                _bundle = null;
-                var unloading = Resources.UnloadUnusedAssets();
-                yield return unloading;
+                yield return UnloadAssetBundle();
             }
 
-            var bundlePath = Path.Combine(Application.streamingAssetsPath, "Bundles/examplebundle");
-            _bundle = AssetBundle.LoadFromFile(bundlePath);
+            yield return CoLoadSceneFromStreamingAssets();
+            //yield return CoLoadSceneFromPersistent();
 
             if (_bundle == null)
             {
-                DisplayError("Failed to load bundle with path: "+bundlePath);
+                DisplayError("Failed to load bundle with path: " + _bundlePath);
                 yield break;
             }
-            
+
             var scenePaths = _bundle.GetAllScenePaths();
             if (scenePaths.Length == 0)
             {
                 DisplayError("ExampleBundle does not contain a scene to load");
-                DisplayError("Failed to load bundle with path: "+bundlePath);
+                DisplayError("Failed to load bundle with path: " + _bundlePath);
             }
-            
+
             SceneManager.LoadSceneAsync(Path.GetFileNameWithoutExtension(scenePaths[0]));
+        }
+
+        private IEnumerator UnloadAssetBundle()
+        {
+            _bundle.Unload(true);
+            _bundle = null;
+            var unloading = Resources.UnloadUnusedAssets();
+            yield return unloading;
+        }
+
+        private IEnumerator CoLoadSceneFromStreamingAssets()
+        {
+            _bundlePath = Path.Combine(Application.streamingAssetsPath, "Bundles/examplebundle");
+            _bundle = AssetBundle.LoadFromFile(_bundlePath);
+            yield return null;
+        }
+
+        private IEnumerator CoLoadSceneFromPersistent()
+        {
+            _bundlePath = "jar:file://" + Application.persistentDataPath + PathInput.text;
+            var www = new WWW(_bundlePath);
+            yield return www;
+            _bundle = www.assetBundle;
+            if (!string.IsNullOrEmpty(www.error))
+            {
+                DisplayError(www.error);
+            }
         }
 
         private void DisplayError(string error)
