@@ -39,6 +39,7 @@ namespace PostSplitLoading.SplitInstall
             builder.AppendLine("SplitInstall bytes downloaded: " + state.BytesDownloaded);
             builder.AppendLine("SplitInstall total downloaded: " + state.TotalBytesToDownload);
             builder.AppendLine("SplitInstall status: " + state.Status);
+            Debug.Log(builder.ToString());
             _downloadProgress = state.BytesDownloaded / (float) state.TotalBytesToDownload;
             _downloadIsDone = state.Status == INSTALLED;
             _state = state;

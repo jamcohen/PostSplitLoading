@@ -30,7 +30,7 @@ namespace PostSplitLoading.SplitInstall
         private IEnumerator CoDownloadSplit()
         {
             var manager = new SplitInstallManager();
-            var listener = manager.StartModuleInstall("dummysplit");
+            var listener = manager.StartModuleInstall("feature");
             var task = new SplitInstallTask(listener);
 
             while (!task.IsDone())
