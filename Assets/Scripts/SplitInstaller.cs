@@ -44,9 +44,11 @@ namespace PostSplitLoading.SplitInstall
 
             while (!task.IsDone())
             {
-                DisplayLog(task.GetStatus());
+                DebugOutput.text = task.GetStatus();
                 yield return null;
             }
+
+            DebugOutput.text = task.GetStatus();
         }
 
         // When a split finishes installing the hash at the end of the /data/app/com.bundle.identifier path changes.

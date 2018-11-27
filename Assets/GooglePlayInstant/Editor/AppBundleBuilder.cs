@@ -33,11 +33,11 @@ namespace GooglePlayInstant.Editor
         private const string FeatureModuleZipFileName = FeatureModuleName + ".zip";
 
         private const string FeatureStringXml =
-@"<?xml version=""1.0"" encoding=""utf-8""?>
+            @"<?xml version=""1.0"" encoding=""utf-8""?>
 <resources>
     <string name=""app_name"">PostSplitLoading</string>
 </resources>";
-        
+
         /// <summary>
         /// Build an app bundle at the specified path, overwriting an existing file if one exists.
         /// </summary>
@@ -137,24 +137,21 @@ namespace GooglePlayInstant.Editor
             var featureDirectoryInfo = workingDirectory.CreateSubdirectory("feature");
             var assetsDirectoryPath = featureDirectoryInfo.CreateSubdirectory("assets").FullName;
 
-            var path = DialogHelper.SaveFilePanel("Choose assets for feature split", Application.persistentDataPath, "");
-            if (path != null)
-            {
-                File.Copy(path, Path.Combine(assetsDirectoryPath, Path.GetFileName(path)));
-            }
-            
+            var bundlePath = Path.Combine(Application.streamingAssetsPath, "Bundles/examplebundle");
+            File.Copy(bundlePath, Path.Combine(assetsDirectoryPath, Path.GetFileName(bundlePath)));
+
             var sourceDirectoryInfo = featureDirectoryInfo.CreateSubdirectory("source");
             var destinationDirectoryInfo = featureDirectoryInfo.CreateSubdirectory("destination");
 
             var resourcesDirectoryInfo = workingDirectory.CreateSubdirectory("res");
             var valuesDirectoryInfo = resourcesDirectoryInfo.CreateSubdirectory("values");
-            
+
             Debug.Log(valuesDirectoryInfo.FullName);
             var stringsFileName = Path.Combine(valuesDirectoryInfo.FullName, "strings.xml");
             File.WriteAllText(stringsFileName, FeatureStringXml);
-            
+
             var compiledResourcesDirectoryInfo = workingDirectory.CreateSubdirectory("compiled");
-            var compileResourcesResult = AndroidAssetPackagingTool.Compile(stringsFileName, 
+            var compileResourcesResult = AndroidAssetPackagingTool.Compile(stringsFileName,
                 compiledResourcesDirectoryInfo.FullName);
             if (compileResourcesResult != null)
             {
@@ -163,7 +160,7 @@ namespace GooglePlayInstant.Editor
             }
 
             var resourceFile = compiledResourcesDirectoryInfo.GetFiles()[0];
-                        
+
             var manifestFileName = Path.Combine(featureDirectoryInfo.FullName, "AndroidManifest.xml");
             var manifestXmlDocument =
                 AndroidManifestHelper.CreateFeatureModule(PlayerSettings.applicationIdentifier, FeatureModuleName,
@@ -175,7 +172,8 @@ namespace GooglePlayInstant.Editor
             var protoFormatFileName = Path.GetRandomFileName();
             var protoFormatFilePath = Path.Combine(sourceDirectoryInfo.FullName, protoFormatFileName);
             var aaptResult = AndroidAssetPackagingTool.Link(
-                manifestFileName, androidJarPath, assetsDirectoryPath, baseApkPath, resourceFile.FullName, protoFormatFilePath);
+                manifestFileName, androidJarPath, assetsDirectoryPath, baseApkPath, resourceFile.FullName,
+                protoFormatFilePath);
             if (aaptResult != null)
             {
                 DisplayBuildError("aapt2 X", aaptResult);
