@@ -133,6 +133,6 @@ namespace PostSplitLoading
         }
 
         [DllImport("ReadLink")]
-        private static extern void ReadLink(string path);
+        public static extern IntPtr ReadLink(string path);
     }
 }

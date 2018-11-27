@@ -16,9 +16,9 @@ using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.Networking;
-
 #if !UNITY_2017_2_OR_NEWER
 using System.IO;
+
 #endif
 
 namespace GooglePlayInstant
@@ -98,7 +98,7 @@ namespace GooglePlayInstant
             return request.isError;
 #endif
         }
-        
+
         /// <summary>
         /// Returns whether or not the current SDK is greater than Oreo.
         /// </summary>
@@ -106,7 +106,7 @@ namespace GooglePlayInstant
         {
             return IsAtLeastO(SystemInfo.operatingSystem);
         }
-              
+
         // Visible for testing.
         public static bool IsAtLeastO(string operatingSystem)
         {

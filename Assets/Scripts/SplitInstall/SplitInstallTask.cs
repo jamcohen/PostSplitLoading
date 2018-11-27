@@ -19,11 +19,12 @@ using System.Text;
 using UnityEngine;
 
 namespace PostSplitLoading.SplitInstall
-{    
+{
     public class SplitInstallTask
     {
         private float _downloadProgress;
         private bool _downloadIsDone;
+        private string _status;
         private SplitInstallSessionState _state;
         private const int INSTALLED = 5;
 
@@ -39,8 +40,10 @@ namespace PostSplitLoading.SplitInstall
             builder.AppendLine("SplitInstall bytes downloaded: " + state.BytesDownloaded);
             builder.AppendLine("SplitInstall total downloaded: " + state.TotalBytesToDownload);
             builder.AppendLine("SplitInstall status: " + state.Status);
-            Debug.Log(builder.ToString());
-            _downloadProgress = state.BytesDownloaded / (float) state.TotalBytesToDownload;
+            _status = builder.ToString();
+            Debug.Log(_status);
+
+            _downloadProgress = (float) state.BytesDownloaded / state.TotalBytesToDownload;
             _downloadIsDone = state.Status == INSTALLED;
             _state = state;
         }
@@ -49,7 +52,7 @@ namespace PostSplitLoading.SplitInstall
         {
             return _state;
         }
-        
+
         public bool IsDone()
         {
             return _downloadIsDone;
@@ -58,6 +61,11 @@ namespace PostSplitLoading.SplitInstall
         public float GetProgress()
         {
             return _downloadProgress;
+        }
+
+        public string GetStatus()
+        {
+            return _status;
         }
     }
 }
