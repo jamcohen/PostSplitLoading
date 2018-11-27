@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application android:name="com.google.android.play.core.splitcompat.SplitCompatApplication">
+    <activity android:name="com.unity3d.player.UnityPlayerActivity">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+    <meta-data android:name="play-instant-unity-plugin.version" android:value="0.9" />
+  </application>
+</manifest>
