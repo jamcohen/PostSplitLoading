@@ -16,6 +16,7 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
@@ -68,20 +69,31 @@ namespace PostSplitLoading
             }
         }
 
-        public void ButtonLoadSceneFromStreamingAssets()
+        public void ButtonLoadSceneFromJar()
         {
-            StartCoroutine(CoLoadAssetBundle());
+            StartCoroutine(CoLoadScene(CoLoadSceneFromJar()));
         }
 
-        private IEnumerator CoLoadAssetBundle()
+        public void ButtonLoadSceneFromStreamingAssets()
+        {
+            StartCoroutine(CoLoadScene(CoLoadSceneFromStreamingAssets()));
+            ;
+        }
+
+        public void ButtonLoadSceneFromZip()
+        {
+            StartCoroutine(CoLoadScene(CoLoadSceneFromZip()));
+            ;
+        }
+
+        private IEnumerator CoLoadScene(IEnumerator LoadAssetBundle)
         {
             if (_bundle != null)
             {
                 yield return UnloadAssetBundle();
             }
 
-            yield return CoLoadSceneFromStreamingAssets();
-            //yield return CoLoadSceneFromPersistent();
+            yield return LoadAssetBundle;
 
             if (_bundle == null)
             {
@@ -114,9 +126,14 @@ namespace PostSplitLoading
             yield return null;
         }
 
-        private IEnumerator CoLoadSceneFromPersistent()
+        private IEnumerator CoLoadSceneFromJar()
         {
-            _bundlePath = "jar:file://" + Application.persistentDataPath + PathInput.text;
+            string filePath = Application.persistentDataPath + PathInput.text;
+            _bundlePath = "jar:file://" + filePath;
+
+            string compressedFolderPath = filePath.Split('!')[0];
+            WalkPath(compressedFolderPath);
+
             var www = new WWW(_bundlePath);
             yield return www;
             _bundle = www.assetBundle;
@@ -124,6 +141,41 @@ namespace PostSplitLoading
             {
                 DisplayError(www.error);
             }
+        }
+
+        private IEnumerator CoLoadSceneFromZip()
+        {
+            string filePath = Application.persistentDataPath + PathInput.text;
+            _bundlePath = "zip:file://" + filePath;
+
+            string compressedFolderPath = filePath.Split('!')[0];
+            WalkPath(compressedFolderPath);
+
+            var www = new WWW(_bundlePath);
+            yield return www;
+            _bundle = www.assetBundle;
+            if (!string.IsNullOrEmpty(www.error))
+            {
+                DisplayError(www.error);
+            }
+        }
+
+        private void WalkPath(string path)
+        {
+            var log = new StringBuilder();
+            var directories = path.Split('/');
+            var currentDir = "/";
+            for (int i = 1; i < directories.Length; i++)
+            {
+                currentDir = Path.Combine(currentDir, directories[i]);
+                string foundFile = Directory.Exists(currentDir) || File.Exists(currentDir)
+                    ? "Found file: " + currentDir
+                    : "Cannot find file: " + currentDir;
+
+                log.AppendLine(foundFile);
+            }
+
+            Debug.Log(log);
         }
 
         private void DisplayError(string error)
