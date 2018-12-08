@@ -71,7 +71,7 @@ namespace PostSplitLoading
 
         public void ButtonLoadSceneFromJar()
         {
-            StartCoroutine(CoLoadScene(CoLoadSceneFromJar()));
+            StartCoroutine(CoLoadScene(CoLoadSceneWithWWW()));
         }
 
         public void ButtonLoadSceneFromStreamingAssets()
@@ -83,7 +83,6 @@ namespace PostSplitLoading
         public void ButtonLoadSceneFromZip()
         {
             StartCoroutine(CoLoadScene(CoLoadSceneFromZip()));
-            ;
         }
 
         private IEnumerator CoLoadScene(IEnumerator LoadAssetBundle)
@@ -121,18 +120,28 @@ namespace PostSplitLoading
 
         private IEnumerator CoLoadSceneFromStreamingAssets()
         {
-            _bundlePath = Path.Combine(Application.streamingAssetsPath, "Bundles/examplebundle");
-            _bundle = AssetBundle.LoadFromFile(_bundlePath);
             yield return null;
+            _bundlePath = Path.Combine(Application.streamingAssetsPath, "Bundles/Bundles.zip");
+            string compressedFolderPath = _bundlePath.Replace("jar:file://", "");
+
+            WalkPath(compressedFolderPath);
+            var zipLoader = new ZipLoader(compressedFolderPath);
+            /*var request = zipLoader.LoadAssetBundleAsync("Bundles/examplebundle");
+            yield return request;
+            _bundle = request.assetBundle;*/
+
+            byte[] assetBundleBytes = zipLoader.LoadFile("Bundles/examplebundle");
+            var request = AssetBundle.LoadFromMemoryAsync(assetBundleBytes);
+            yield return request;
+            _bundle = request.assetBundle;
         }
 
-        private IEnumerator CoLoadSceneFromJar()
+        private IEnumerator CoLoadSceneWithWWW()
         {
             string filePath = Application.persistentDataPath + PathInput.text;
             _bundlePath = "jar:file://" + filePath;
 
-            string compressedFolderPath = filePath.Split('!')[0];
-            WalkPath(compressedFolderPath);
+            WalkPath(_bundlePath);
 
             var www = new WWW(_bundlePath);
             yield return www;
@@ -146,18 +155,11 @@ namespace PostSplitLoading
         private IEnumerator CoLoadSceneFromZip()
         {
             string filePath = Application.persistentDataPath + PathInput.text;
-            _bundlePath = "zip:file://" + filePath;
-
-            string compressedFolderPath = filePath.Split('!')[0];
-            WalkPath(compressedFolderPath);
-
-            var www = new WWW(_bundlePath);
-            yield return www;
-            _bundle = www.assetBundle;
-            if (!string.IsNullOrEmpty(www.error))
-            {
-                DisplayError(www.error);
-            }
+            WalkPath(filePath);
+            var zipLoader = new ZipLoader(filePath);
+            var request = zipLoader.LoadAssetBundleAsync("Bundles/examplebundle");
+            yield return request;
+            _bundle = request.assetBundle;
         }
 
         private void WalkPath(string path)
