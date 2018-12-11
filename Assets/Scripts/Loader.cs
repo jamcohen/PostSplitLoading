@@ -35,10 +35,7 @@ namespace PostSplitLoading
         public Text DebugOutput;
         public Text PathInput;
 
-        public Toggle LoadMemoryCheckbox;
-
-        private static AssetBundle _bundle;
-        private static HashSet<AssetBundle> _bundles;
+        private static Dictionary<string, AssetBundle> _bundleByName = new Dictionary<string, AssetBundle>();
         private string _bundlePath;
         private LoadOptions _options;
 
@@ -49,117 +46,97 @@ namespace PostSplitLoading
 
         public void ButtonLoadScene()
         {
-            SceneManager.LoadSceneAsync(Path.GetFileNameWithoutExtension(_bundle.GetAllScenePaths()[0]));
-            //SceneManager.LoadScene(1);
-        }
-
-        public void ButtonLoadNativeLib()
-        {
-            try
+            var bundleName = _options.GetAssetBundleName();
+            AssetBundle bundle;
+            if (!_bundleByName.TryGetValue(bundleName, out bundle))
             {
-                // Pass empty string to library function to load the library.
-                ReadLink("");
-            }
-            catch (DllNotFoundException e)
-            {
-                DisplayError(e.ToString());
+                DisplayError(string.Format("Cannot load scene because bundle: {0} is not loaded.", bundleName));
                 return;
             }
 
-            LoadLibraryButton.enabled = false;
-            LibraryLoadedStatus.text = "Library Loaded";
-        }
-
-        public void ButtonLoadResources()
-        {
-            var image = Resources.Load<Texture2D>("ExampleImage");
-            ImageDisplay.texture = image;
-
-            if (image == null)
+            var scenePaths = bundle.GetAllScenePaths();
+            if (scenePaths.Length == 0)
             {
-                DisplayError("Failed to load image from resources");
+                DisplayError(string.Format("Cannot load scene because bundle: {0} contains no scenes.", bundleName));
             }
+
+            SceneManager.LoadSceneAsync(Path.GetFileNameWithoutExtension(scenePaths[0]));
         }
 
-        public void ButtonLoadSceneFromStreamingAssets()
+        public void ButtonLoadBundle()
         {
-            StartCoroutine(CoLoadScene(CoLoadSceneFromStreamingAssets()));
+            StartCoroutine(CoLoadScene(CoLoadSceneFromZip()));
         }
-
-        public void ButtonLoadSceneFromZip()
+        
+        public void ButtonUnloadBundles()
         {
-            StartCoroutine(CoLoadScene(CoLoadSceneFromPersistent()));
+            StartCoroutine(CoUnloadAssetBundles());
         }
 
         private IEnumerator CoLoadScene(IEnumerator LoadAssetBundle)
         {
-            if (_bundles.Count > 0)
+            if (_bundleByName.Count > 0)
             {
-                _bundle = null;
-                foreach (var bundle in _bundles)
-                {
-                    yield return UnloadAssetBundle(bundle);
-                }
-
-                _bundles.Clear();
+                yield return CoUnloadAssetBundles();
             }
 
             yield return LoadAssetBundle;
 
-            if (_bundle == null)
+            var bundleName = _options.GetAssetBundleName();
+            if (!bundleName.Contains(bundleName))
             {
                 DisplayError("Failed to load bundle with path: " + _bundlePath);
                 yield break;
             }
-
-            var scenePaths = _bundle.GetAllScenePaths();
-            if (scenePaths.Length == 0)
+        }
+        
+        private IEnumerator CoUnloadAssetBundles()
+        {
+            foreach (var pair in _bundleByName)
             {
-                DisplayError("ExampleBundle does not contain a scene to load");
-                DisplayError("Failed to load bundle with path: " + _bundlePath);
+                yield return CoUnloadAssetBundle(pair.Value);
             }
 
-            //SceneManager.LoadSceneAsync(Path.GetFileNameWithoutExtension(scenePaths[0]));
+            _bundleByName.Clear();
         }
 
-        private IEnumerator UnloadAssetBundle(AssetBundle bundle)
+        private IEnumerator CoUnloadAssetBundle(AssetBundle bundle)
         {
             bundle.Unload(true);
             var unloading = Resources.UnloadUnusedAssets();
             yield return unloading;
         }
 
-        private IEnumerator CoLoadSceneFromStreamingAssets()
+        private IEnumerator CoLoadSceneFromZip()
         {
             _bundlePath = _options.GetLoadingLocation();
-
             WalkPath(_bundlePath);
             yield return CoLoadFromZip(_bundlePath, !_options.GetLoadFromFile());
-        }
-
-        private IEnumerator CoLoadSceneFromPersistent()
-        {
-            string filePath = _options.GetLoadingLocation();
-            WalkPath(filePath);
-            yield return CoLoadFromZip(filePath, !_options.GetLoadFromFile());
         }
 
         private IEnumerator CoLoadFromZip(string path, bool loadFromMemory)
         {
             var zipLoader = new ZipLoader(path);
+            var bundleName = _options.GetAssetBundleName();
+            AssetBundle bundle;
 
             if (loadFromMemory)
             {
-                byte[] assetBundleBytes = zipLoader.LoadFile(_options.GetAssetBundleName());
+                byte[] assetBundleBytes = zipLoader.LoadFile(bundleName);
                 var request = AssetBundle.LoadFromMemoryAsync(assetBundleBytes);
                 yield return request;
-                _bundle = request.assetBundle;
+                bundle = request.assetBundle;
             }
             else
             {
-                var request = zipLoader.LoadAssetBundleAsync(_options.GetAssetBundleName());
+                var request = zipLoader.LoadAssetBundleAsync(bundleName);
                 yield return request;
-                _bundle = request.assetBundle;
+                bundle = request.assetBundle;
+            }
+
+            if (bundle != null)
+            {
+                _bundleByName.Add(bundleName, bundle);
             }
         }
 
