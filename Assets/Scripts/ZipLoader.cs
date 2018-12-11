@@ -37,7 +37,6 @@ namespace PostSplitLoading
 
         public ZipLoader(string zipPath)
         {
-            const long largestCentralDirectorySize = 64 * 1024;
             using (var zipStream = new BinaryReader(File.OpenRead(zipPath)))
             {
                 _zipFilePath = zipPath;
@@ -84,6 +83,10 @@ namespace PostSplitLoading
             }
         }
 
+        /// <summary>
+        /// Extracts the file locations from the central directory.
+        /// Assumes that zipStream is positioned at the start of the central directory.
+        /// </summary>
         private void ExtractFileLocations(BinaryReader zipStream)
         {
             while (zipStream.ReadInt32() != EndOfCentralDirectory)
@@ -94,7 +97,10 @@ namespace PostSplitLoading
 
         /// <summary>
         /// Extracts the file location and path from the central directory.
-        /// Caches it in _offsetsByFilePath.
+        /// Caches it in _fileInfoByPath.
+        /// Assumes that zipStream is positioned at the start of a central directory file header.
+        /// Finishes with zipStream positioned at either the start of the next central directory file header,
+        /// or the end of the central directory.
         /// </summary>
         private void ExtractFileLocation(BinaryReader zipStream)
         {
@@ -134,6 +140,10 @@ namespace PostSplitLoading
                 fileName, zipStream.BaseStream.Position, fileInfo.Offset, fileInfo.Size);
         }
 
+        /// <summary>
+        /// Extracts the central directory location and seeks zip to it.
+        /// </summary>
+        /// <returns>True if the central directory is found. False otherwise.</returns>
         private static bool SeekToCentralDirectory(BinaryReader zip)
         {
             // Find the end of central directory record, which contains the location of the central directory.
@@ -160,8 +170,17 @@ namespace PostSplitLoading
             return false;
         }
 
+        /// <summary>
+        /// Find the location of the central directory.
+        /// Assumes that zip is pointing to the start of the "end of central directory record" (EOCD)
+        /// </summary>
+        /// <returns>
+        /// True if the offset contained in the EOCD contains the "start of central directory" signature.
+        /// False otherwise.
+        /// </returns>
         private static bool SeekFromCdEndToCdStart(BinaryReader zip)
         {
+            // Grab central directory offset which is 16 bytes from the start of the EOCD
             zip.BaseStream.Seek(16, SeekOrigin.Current);
             var offsetToCentralDirectory = zip.ReadInt32();
             zip.BaseStream.Seek(offsetToCentralDirectory, SeekOrigin.Begin);
@@ -175,11 +194,16 @@ namespace PostSplitLoading
             return false;
         }
 
-        private static bool SeekToMatch(BinaryReader zip, int search)
+        /// <summary>
+        /// Scans the stream, starting from zip's current position until it finds "matchToken".
+        /// </summary>
+        /// <param name="matchToken">The int to search for.</param>
+        /// <returns></returns>
+        private static bool SeekToMatch(BinaryReader zip, int matchToken)
         {
             while (zip.BaseStream.Position < zip.BaseStream.Length)
             {
-                if (zip.ReadInt32() == search)
+                if (zip.ReadInt32() == matchToken)
                 {
                     zip.BaseStream.Seek(-4, SeekOrigin.Current);
                     return true;
