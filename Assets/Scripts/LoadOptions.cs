@@ -25,17 +25,25 @@ namespace PostSplitLoading
         public Toggle CompressedBundleToggle;
         public Toggle UncompressedBundleToggle;
 
+        public string StreamingAssetsBundlePath { get; private set; }
+        public string PersistentDataBundlePath { get; private set; }
+
+        private void Awake()
+        {
+            StreamingAssetsBundlePath = Path.Combine(Application.streamingAssetsPath, "Bundles/Bundles.zip");
+            PersistentDataBundlePath = Path.Combine(Application.persistentDataPath, "Bundles/Bundles.zip");
+        }
+
         public string GetLoadingLocation()
         {
             string path = "";
             if (StreamingAssetsToggle.isOn)
             {
-                path = Path.Combine(Application.streamingAssetsPath, "Bundles/Bundles.zip");
-                path = path.Replace("jar:file://", "");
+                path = StreamingAssetsBundlePath.Replace("jar:file://", "");
             }
             else
             {
-                path = Path.Combine(Application.persistentDataPath, "Bundles/Bundles.zip");
+                path = PersistentDataBundlePath;
             }
 
             return path;

@@ -42,6 +42,7 @@ namespace PostSplitLoading
         private void Start()
         {
             _options = GetComponent<LoadOptions>();
+            StartCoroutine(CoCopyBundleIntoPersistent());
         }
 
         public void ButtonLoadScene()
@@ -67,10 +68,42 @@ namespace PostSplitLoading
         {
             StartCoroutine(CoLoadScene(CoLoadSceneFromZip()));
         }
-        
+
         public void ButtonUnloadBundles()
         {
             StartCoroutine(CoUnloadAssetBundles());
+        }
+
+        /// <summary>
+        /// Copies Bundle.zip from Application.StreamingAssets to Application.PersistentData,
+        /// because streaming assets can't be accessed directly on Android.
+        /// </summary>
+        private IEnumerator CoCopyBundleIntoPersistent()
+        {
+            var streamingPath = _options.StreamingAssetsBundlePath;
+#if !UNITY_ANDROID || UNITY_EDITOR
+            streamingPath = "file:///" + streamingPath;
+#endif
+
+            using (WWW www = new WWW(streamingPath))
+            {
+                yield return www;
+                if (!string.IsNullOrEmpty(www.error))
+                {
+                    DisplayError(string.Format("Failed to copy {0} into persistent data, {1}",
+                        streamingPath, www.error));
+                    yield break;
+                }
+
+                FileInfo fileInfo = new FileInfo(_options.PersistentDataBundlePath);
+                DirectoryInfo bundleFolder = fileInfo.Directory;
+                if (!bundleFolder.Exists)
+                {
+                    bundleFolder.Create();
+                }
+
+                File.WriteAllBytes(_options.PersistentDataBundlePath, www.bytes);
+            }
         }
 
         private IEnumerator CoLoadScene(IEnumerator LoadAssetBundle)
@@ -89,7 +122,7 @@ namespace PostSplitLoading
                 yield break;
             }
         }
-        
+
         private IEnumerator CoUnloadAssetBundles()
         {
             foreach (var pair in _bundleByName)
