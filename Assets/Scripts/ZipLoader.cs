@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
 namespace PostSplitLoading
 {
@@ -31,6 +26,8 @@ namespace PostSplitLoading
 
         private const int StartOfCentralDirectory = 0x02014b50;
         private const int EndOfCentralDirectory = 0x06054b50;
+        private const int MaxCommentSize = (1 << 16) - 1;
+        private const int EndOfCentralDirectoryRecordSize = 22;
 
         private struct FileInfo
         {
@@ -45,7 +42,7 @@ namespace PostSplitLoading
             {
                 _zipFilePath = zipPath;
 
-                bool foundCentralDirectory = SeekToMatch(zipStream, StartOfCentralDirectory);
+                bool foundCentralDirectory = SeekToCentralDirectory(zipStream);
                 if (!foundCentralDirectory)
                 {
                     Debug.LogErrorFormat("Could not find central directory in zip file: {0}", zipPath);
@@ -135,6 +132,47 @@ namespace PostSplitLoading
             Debug.LogFormat(
                 "Found file:{0}, finished at: {1}, offsetToHeader: {2}, size: {3}",
                 fileName, zipStream.BaseStream.Position, fileInfo.Offset, fileInfo.Size);
+        }
+
+        private static bool SeekToCentralDirectory(BinaryReader zip)
+        {
+            // Find the end of central directory record, which contains the location of the central directory.
+            // Start by assuming the central directory has no comment.
+            zip.BaseStream.Seek(-EndOfCentralDirectoryRecordSize, SeekOrigin.End);
+            if (SeekToMatch(zip, EndOfCentralDirectory))
+            {
+                if (SeekFromCdEndToCdStart(zip))
+                {
+                    return true;
+                }
+            }
+
+            // If we haven't found it yet, assume there is a comment, and seek backwards by the maximum comment length.
+            zip.BaseStream.Seek(-EndOfCentralDirectoryRecordSize - MaxCommentSize, SeekOrigin.End);
+            if (SeekToMatch(zip, EndOfCentralDirectory))
+            {
+                if (SeekFromCdEndToCdStart(zip))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool SeekFromCdEndToCdStart(BinaryReader zip)
+        {
+            zip.BaseStream.Seek(16, SeekOrigin.Current);
+            var offsetToCentralDirectory = zip.ReadInt32();
+            zip.BaseStream.Seek(offsetToCentralDirectory, SeekOrigin.Begin);
+
+            if (zip.ReadInt32() == StartOfCentralDirectory)
+            {
+                zip.BaseStream.Seek(-4, SeekOrigin.Current);
+                return true;
+            }
+
+            return false;
         }
 
         private static bool SeekToMatch(BinaryReader zip, int search)
