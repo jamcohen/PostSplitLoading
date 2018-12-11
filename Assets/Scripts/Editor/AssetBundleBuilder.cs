@@ -23,22 +23,29 @@ namespace PostSplitLoading.Editor
     {
         private const string BundleName = "ExampleBundle";
         private const string ScenePath = "Assets/Scenes/AssetBundleScene.unity";
-        
+
         [MenuItem("AssetBundleBuilder/Build Example")]
         public static void Build()
         {
+            Build(BuildAssetBundleOptions.None, BundleName);
+            Build(BuildAssetBundleOptions.UncompressedAssetBundle, BundleName + "-uncompressed");
+            Build(BuildAssetBundleOptions.ChunkBasedCompression, BundleName + "-chunked");
+        }
+
+        public static void Build(BuildAssetBundleOptions options, string name)
+        {
             var assetBundleBuild = new AssetBundleBuild();
-            assetBundleBuild.assetBundleName = BundleName;
-            assetBundleBuild.assetNames = new []{ScenePath};
+            assetBundleBuild.assetBundleName = name;
+            assetBundleBuild.assetNames = new[] {ScenePath};
             var assetBundleDirectory = Path.Combine(Application.streamingAssetsPath, "Bundles");
             if (!Directory.Exists(assetBundleDirectory))
             {
                 Directory.CreateDirectory(assetBundleDirectory);
             }
-            
+
             var builtAssetBundleManifest = BuildPipeline.BuildAssetBundles(assetBundleDirectory,
-                new[] {assetBundleBuild}, BuildAssetBundleOptions.None, EditorUserBuildSettings.activeBuildTarget);
-            
+                new[] {assetBundleBuild}, options, EditorUserBuildSettings.activeBuildTarget);
+
             // Returned AssetBundleManifest will be null if there was error in building assetbundle.
             if (builtAssetBundleManifest == null)
             {

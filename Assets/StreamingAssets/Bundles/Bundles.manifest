@@ -1,7 +1,7 @@
 ManifestFileVersion: 0
-CRC: 3158485649
+CRC: 1606630298
 AssetBundleManifest:
   AssetBundleInfos:
     Info_0:
-      Name: examplebundle
+      Name: examplebundle-chunked
       Dependencies: {}

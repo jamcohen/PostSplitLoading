@@ -27,7 +27,6 @@ namespace PostSplitLoading
     public class ZipLoader
     {
         private string _zipFilePath; // Path to the zip file.
-        private BinaryReader _zipStream;
         private Dictionary<string, FileInfo> _fileInfoByPath;
 
         private const int StartOfCentralDirectory = 0x02014b50;
@@ -42,18 +41,20 @@ namespace PostSplitLoading
         public ZipLoader(string zipPath)
         {
             const long largestCentralDirectorySize = 64 * 1024;
-            _zipStream = new BinaryReader(File.OpenRead(zipPath));
-            _zipFilePath = zipPath;
-
-            bool foundCentralDirectory = SeekToMatch(_zipStream, StartOfCentralDirectory);
-            if (!foundCentralDirectory)
+            using (var zipStream = new BinaryReader(File.OpenRead(zipPath)))
             {
-                Debug.LogErrorFormat("Could not find central directory in zip file: {0}", zipPath);
-                return;
-            }
+                _zipFilePath = zipPath;
 
-            _fileInfoByPath = new Dictionary<string, FileInfo>();
-            ExtractFileLocations();
+                bool foundCentralDirectory = SeekToMatch(zipStream, StartOfCentralDirectory);
+                if (!foundCentralDirectory)
+                {
+                    Debug.LogErrorFormat("Could not find central directory in zip file: {0}", zipPath);
+                    return;
+                }
+
+                _fileInfoByPath = new Dictionary<string, FileInfo>();
+                ExtractFileLocations(zipStream);
+            }
         }
 
         public AssetBundleCreateRequest LoadAssetBundleAsync(string fileName)
@@ -71,23 +72,26 @@ namespace PostSplitLoading
 
         public byte[] LoadFile(string fileName)
         {
-            FileInfo fileInfo;
-            if (!_fileInfoByPath.TryGetValue(fileName, out fileInfo))
+            using (var zipStream = new BinaryReader(File.OpenRead(_zipFilePath)))
             {
-                Debug.LogErrorFormat("Cannot find AssetBundle {0} in zip file", fileName);
-                return null;
-            }
+                FileInfo fileInfo;
+                if (!_fileInfoByPath.TryGetValue(fileName, out fileInfo))
+                {
+                    Debug.LogErrorFormat("Cannot find AssetBundle {0} in zip file", fileName);
+                    return null;
+                }
 
-            Debug.LogFormat("Loading with offset: {0} and size: {1}", fileInfo.Offset, fileInfo.Size);
-            _zipStream.BaseStream.Seek(fileInfo.Offset, SeekOrigin.Begin);
-            return _zipStream.ReadBytes(fileInfo.Size);
+                Debug.LogFormat("Loading with offset: {0} and size: {1}", fileInfo.Offset, fileInfo.Size);
+                zipStream.BaseStream.Seek(fileInfo.Offset, SeekOrigin.Begin);
+                return zipStream.ReadBytes(fileInfo.Size);
+            }
         }
 
-        private void ExtractFileLocations()
+        private void ExtractFileLocations(BinaryReader zipStream)
         {
-            while (_zipStream.ReadInt32() != EndOfCentralDirectory)
+            while (zipStream.ReadInt32() != EndOfCentralDirectory)
             {
-                ExtractFileLocation();
+                ExtractFileLocation(zipStream);
             }
         }
 
@@ -95,27 +99,27 @@ namespace PostSplitLoading
         /// Extracts the file location and path from the central directory.
         /// Caches it in _offsetsByFilePath.
         /// </summary>
-        private void ExtractFileLocation()
+        private void ExtractFileLocation(BinaryReader zipStream)
         {
             var fileInfo = new FileInfo();
 
-            _zipStream.BaseStream.Seek(16, SeekOrigin.Current); // Skip to compressed size.
+            zipStream.BaseStream.Seek(16, SeekOrigin.Current); // Skip to compressed size.
 
             // Read compressed size.
-            fileInfo.Size = _zipStream.ReadInt32();
-            var uncompressedSize = _zipStream.ReadInt32();
+            fileInfo.Size = zipStream.ReadInt32();
+            var uncompressedSize = zipStream.ReadInt32();
             if (fileInfo.Size != uncompressedSize)
             {
                 Debug.LogErrorFormat("File in zip {0} is not stored as uncompressed.", _zipFilePath);
                 return;
             }
 
-            var fileNameLength = _zipStream.ReadInt16();
-            var extraFieldLength = _zipStream.ReadInt16();
-            var commentFieldLength = _zipStream.ReadInt16();
+            var fileNameLength = zipStream.ReadInt16();
+            var extraFieldLength = zipStream.ReadInt16();
+            var commentFieldLength = zipStream.ReadInt16();
 
-            _zipStream.BaseStream.Seek(8, SeekOrigin.Current); // Skip to file offset.
-            fileInfo.Offset = _zipStream.ReadInt32();
+            zipStream.BaseStream.Seek(8, SeekOrigin.Current); // Skip to file offset.
+            fileInfo.Offset = zipStream.ReadInt32();
 
             // Add the size of the file's local header to get the starting location of the file.
             fileInfo.Offset += 34 +
@@ -123,14 +127,14 @@ namespace PostSplitLoading
                                extraFieldLength +
                                commentFieldLength;
 
-            var fileName = Encoding.UTF8.GetString(_zipStream.ReadBytes(fileNameLength));
+            var fileName = Encoding.UTF8.GetString(zipStream.ReadBytes(fileNameLength));
 
             _fileInfoByPath.Add(fileName, fileInfo);
 
-            _zipStream.BaseStream.Seek(extraFieldLength + commentFieldLength, SeekOrigin.Current);
+            zipStream.BaseStream.Seek(extraFieldLength + commentFieldLength, SeekOrigin.Current);
             Debug.LogFormat(
                 "Found file:{0}, finished at: {1}, offsetToHeader: {2}, size: {3}",
-                fileName, _zipStream.BaseStream.Position, fileInfo.Offset, fileInfo.Size);
+                fileName, zipStream.BaseStream.Position, fileInfo.Offset, fileInfo.Size);
         }
 
         private static bool SeekToMatch(BinaryReader zip, int search)

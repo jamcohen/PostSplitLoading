@@ -14,7 +14,9 @@
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
@@ -33,12 +35,22 @@ namespace PostSplitLoading
         public Text DebugOutput;
         public Text PathInput;
 
+        public Toggle LoadMemoryCheckbox;
+
         private static AssetBundle _bundle;
+        private static HashSet<AssetBundle> _bundles;
         private string _bundlePath;
+        private LoadOptions _options;
+
+        private void Start()
+        {
+            _options = GetComponent<LoadOptions>();
+        }
 
         public void ButtonLoadScene()
         {
-            SceneManager.LoadScene(1);
+            SceneManager.LoadSceneAsync(Path.GetFileNameWithoutExtension(_bundle.GetAllScenePaths()[0]));
+            //SceneManager.LoadScene(1);
         }
 
         public void ButtonLoadNativeLib()
@@ -69,27 +81,27 @@ namespace PostSplitLoading
             }
         }
 
-        public void ButtonLoadSceneFromJar()
-        {
-            StartCoroutine(CoLoadScene(CoLoadSceneWithWWW()));
-        }
-
         public void ButtonLoadSceneFromStreamingAssets()
         {
             StartCoroutine(CoLoadScene(CoLoadSceneFromStreamingAssets()));
-            ;
         }
 
         public void ButtonLoadSceneFromZip()
         {
-            StartCoroutine(CoLoadScene(CoLoadSceneFromZip()));
+            StartCoroutine(CoLoadScene(CoLoadSceneFromPersistent()));
         }
 
         private IEnumerator CoLoadScene(IEnumerator LoadAssetBundle)
         {
-            if (_bundle != null)
+            if (_bundles.Count > 0)
             {
-                yield return UnloadAssetBundle();
+                _bundle = null;
+                foreach (var bundle in _bundles)
+                {
+                    yield return UnloadAssetBundle(bundle);
+                }
+
+                _bundles.Clear();
             }
 
             yield return LoadAssetBundle;
@@ -107,59 +119,48 @@ namespace PostSplitLoading
                 DisplayError("Failed to load bundle with path: " + _bundlePath);
             }
 
-            SceneManager.LoadSceneAsync(Path.GetFileNameWithoutExtension(scenePaths[0]));
+            //SceneManager.LoadSceneAsync(Path.GetFileNameWithoutExtension(scenePaths[0]));
         }
 
-        private IEnumerator UnloadAssetBundle()
+        private IEnumerator UnloadAssetBundle(AssetBundle bundle)
         {
-            _bundle.Unload(true);
-            _bundle = null;
+            bundle.Unload(true);
             var unloading = Resources.UnloadUnusedAssets();
             yield return unloading;
         }
 
         private IEnumerator CoLoadSceneFromStreamingAssets()
         {
-            yield return null;
-            _bundlePath = Path.Combine(Application.streamingAssetsPath, "Bundles/Bundles.zip");
-            string compressedFolderPath = _bundlePath.Replace("jar:file://", "");
-
-            WalkPath(compressedFolderPath);
-            var zipLoader = new ZipLoader(compressedFolderPath);
-            /*var request = zipLoader.LoadAssetBundleAsync("Bundles/examplebundle");
-            yield return request;
-            _bundle = request.assetBundle;*/
-
-            byte[] assetBundleBytes = zipLoader.LoadFile("Bundles/examplebundle");
-            var request = AssetBundle.LoadFromMemoryAsync(assetBundleBytes);
-            yield return request;
-            _bundle = request.assetBundle;
-        }
-
-        private IEnumerator CoLoadSceneWithWWW()
-        {
-            string filePath = Application.persistentDataPath + PathInput.text;
-            _bundlePath = "jar:file://" + filePath;
+            _bundlePath = _options.GetLoadingLocation();
 
             WalkPath(_bundlePath);
-
-            var www = new WWW(_bundlePath);
-            yield return www;
-            _bundle = www.assetBundle;
-            if (!string.IsNullOrEmpty(www.error))
-            {
-                DisplayError(www.error);
-            }
+            yield return CoLoadFromZip(_bundlePath, !_options.GetLoadFromFile());
         }
 
-        private IEnumerator CoLoadSceneFromZip()
+        private IEnumerator CoLoadSceneFromPersistent()
         {
-            string filePath = Application.persistentDataPath + PathInput.text;
+            string filePath = _options.GetLoadingLocation();
             WalkPath(filePath);
-            var zipLoader = new ZipLoader(filePath);
-            var request = zipLoader.LoadAssetBundleAsync("Bundles/examplebundle");
-            yield return request;
-            _bundle = request.assetBundle;
+            yield return CoLoadFromZip(filePath, !_options.GetLoadFromFile());
+        }
+
+        private IEnumerator CoLoadFromZip(string path, bool loadFromMemory)
+        {
+            var zipLoader = new ZipLoader(path);
+
+            if (loadFromMemory)
+            {
+                byte[] assetBundleBytes = zipLoader.LoadFile(_options.GetAssetBundleName());
+                var request = AssetBundle.LoadFromMemoryAsync(assetBundleBytes);
+                yield return request;
+                _bundle = request.assetBundle;
+            }
+            else
+            {
+                var request = zipLoader.LoadAssetBundleAsync(_options.GetAssetBundleName());
+                yield return request;
+                _bundle = request.assetBundle;
+            }
         }
 
         private void WalkPath(string path)
